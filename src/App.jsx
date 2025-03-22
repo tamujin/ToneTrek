@@ -3,7 +3,10 @@ import { Box, Container, Typography, Button, Paper, IconButton, Stack, Alert, Ci
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import FormatColorTextIcon from '@mui/icons-material/FormatColorText';
+import TagIcon from '@mui/icons-material/Tag';
+import LockIcon from '@mui/icons-material/Lock';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
 import { useTheme } from './contexts/ThemeContext';
 import { styled } from '@mui/material/styles';
 
@@ -45,6 +48,7 @@ const ColorSwatch = styled(Box)(({ color }) => ({
 function App() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [palette, setPalette] = useState([]);
+  const [lockedColors, setLockedColors] = useState({});
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '' });
@@ -119,7 +123,13 @@ function App() {
         .slice(0, 5)
         .map(([color]) => color);
 
-      setPalette(sortedColors);
+      setPalette(prevPalette => {
+        const newPalette = [...sortedColors];
+        Object.entries(lockedColors).forEach(([index, color]) => {
+          if (color) newPalette[parseInt(index)] = color;
+        });
+        return newPalette;
+      });
       setIsLoading(false);
     };
 
@@ -133,6 +143,11 @@ function App() {
     if (selectedImage) {
       extractColors(selectedImage);
     }
+  };
+
+  const unlockAllColors = () => {
+    setLockedColors({});
+    setSnackbar({ open: true, message: 'All colors unlocked!' });
   };
 
   return (
@@ -213,6 +228,13 @@ function App() {
               >
                 <RefreshIcon />
               </IconButton>
+              <IconButton
+                onClick={unlockAllColors}
+                color="secondary"
+                sx={{ backgroundColor: (theme) => theme.palette.grey[100] }}
+              >
+                <LockOpenIcon />
+              </IconButton>
             </Stack>
             <ColorPalette>
               {palette.map((color, index) => (
@@ -229,6 +251,22 @@ function App() {
                       transition: 'opacity 0.2s ease-in-out',
                     }}
                   >
+                    <Tooltip title="Lock/Unlock Color">
+                      <IconButton
+                        size="small"
+                        sx={{ bgcolor: 'rgba(255,255,255,0.3)', '&:hover': { bgcolor: 'rgba(255,255,255,0.5)' } }}
+                        onClick={() => {
+                          setLockedColors(prev => ({
+                            ...prev,
+                            [index]: prev[index] ? null : color
+                          }));
+                        }}
+                      >
+                        {lockedColors[index] ? 
+                          <LockIcon sx={{ fontSize: 16, color: '#fff' }} /> : 
+                          <LockOpenIcon sx={{ fontSize: 16, color: '#fff' }} />}
+                      </IconButton>
+                    </Tooltip>
                     <Tooltip title="Copy RGB">
                       <IconButton
                         size="small"
@@ -238,7 +276,7 @@ function App() {
                           setSnackbar({ open: true, message: 'RGB color code copied!' });
                         }}
                       >
-                        <ContentCopyIcon sx={{ fontSize: 16, color: '#fff' }} />
+                        <FormatColorTextIcon sx={{ fontSize: 16, color: '#fff' }} />
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="Copy HEX">
@@ -251,7 +289,7 @@ function App() {
                           setSnackbar({ open: true, message: 'HEX color code copied!' });
                         }}
                       >
-                        <ContentCopyIcon sx={{ fontSize: 16, color: '#fff' }} />
+                        <TagIcon sx={{ fontSize: 16, color: '#fff' }} />
                       </IconButton>
                     </Tooltip>
                   </Stack>
