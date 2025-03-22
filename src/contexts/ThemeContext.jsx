@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createTheme } from '@mui/material/styles';
 
 const lightTheme = createTheme({
@@ -46,8 +46,17 @@ const darkTheme = createTheme({
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    // Try to load theme preference from localStorage
+    const savedTheme = localStorage.getItem('theme-preference');
+    return savedTheme === 'dark';
+  });
   const theme = isDark ? darkTheme : lightTheme;
+
+  // Save theme preference to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('theme-preference', isDark ? 'dark' : 'light');
+  }, [isDark]);
 
   const toggleTheme = () => {
     setIsDark(!isDark);
