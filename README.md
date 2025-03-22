@@ -1,11 +1,17 @@
 # ToneTrek
 
-ToneTrek is a web application that helps users explore and manipulate colors in an intuitive way. Built with React and Material-UI, it provides a modern and responsive interface for color manipulation and theme creation.
+<p align="center">
+  <img src="./src/assets/tonetrek-logo.png" alt="ToneTrek Logo" width="300"/>
+</p>
+
+ToneTrek is a color palette extraction tool that helps users extract dominant colors from images. Built with React and Material-UI, it provides a modern and responsive interface for color discovery and collection.
 
 ## Features
 
-- Interactive color manipulation
-- Theme customization
+- Extract color palettes from any image
+- Lock colors to preserve them when refreshing
+- Copy RGB and HEX color codes with one click
+- Multiple themes including Cyberpunk, Snow White, and more
 - Modern, responsive UI
 - Built with React and Material-UI
 
@@ -34,7 +40,17 @@ ToneTrek is a web application that helps users explore and manipulate colors in 
    npm run dev
    ```
 
-4. Open [http://localhost:3000](http://localhost:3000) to view it in your browser
+4. Open [http://localhost:5173](http://localhost:5173) to view it in your browser
+
+## How It Works
+
+ToneTrek uses HTML Canvas to analyze images and extract dominant colors:
+
+1. Upload an image (supports JPG, PNG, etc.)
+2. The application samples 1000 random pixels from the image
+3. The most frequently occurring colors are identified
+4. A 5-color palette is generated
+5. You can lock specific colors, refresh to find new combinations, or copy color codes
 
 ## Development
 
@@ -45,12 +61,11 @@ ToneTrek is a web application that helps users explore and manipulate colors in 
 - `npm run preview` - Previews the production build locally
 - `npm run deploy` - Deploys the app to GitHub Pages
 
-### Branch Strategy
+### Version Tracking
 
-- `main` - Production-ready code
-- `develop` - Development branch for integrating features
-- `feature/*` - Feature branches for new development
-- `bugfix/*` - Bug fix branches
+ToneTrek follows semantic versioning (MAJOR.MINOR.PATCH):
+- Current version: v1.0.0
+- Build: 20240322.1
 
 ## Contributing
 
@@ -77,7 +92,6 @@ Please read our [Code of Conduct](CODE_OF_CONDUCT.md) to understand our communit
 - React
 - Material-UI
 - Vite
-- TailwindCSS
 
 ## Contact
 
