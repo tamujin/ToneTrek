@@ -12,9 +12,9 @@ const UploadBox = styled(Paper)(({ theme }) => ({
   textAlign: 'center',
   cursor: 'pointer',
   marginTop: theme.spacing(4),
-  backgroundColor: theme.palette.grey[50],
+  backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.container : theme.palette.grey[50],
   '&:hover': {
-    backgroundColor: theme.palette.grey[100],
+    backgroundColor: theme.palette.mode === 'dark' ? theme.palette.action.hover : theme.palette.grey[100],
   },
 }));
 
