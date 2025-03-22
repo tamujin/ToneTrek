@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Container, Typography, Button, Paper, IconButton, Stack, Alert, CircularProgress, Tooltip, Snackbar, Menu, MenuItem, ListItemText, ListItemIcon, Link } from '@mui/material';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
@@ -10,6 +10,8 @@ import LockOpenIcon from '@mui/icons-material/LockOpen';
 import ColorLensIcon from '@mui/icons-material/ColorLens';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import CloseIcon from '@mui/icons-material/Close';
+import DownloadIcon from '@mui/icons-material/Download';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import { useTheme } from './contexts/ThemeContext';
 import { styled } from '@mui/material/styles';
 import ToneTrekLogo, { APP_VERSION, BUILD_NUMBER } from './assets/ToneTrekLogo';
@@ -40,8 +42,8 @@ const ColorPalette = styled(Box)(({ theme }) => ({
 }));
 
 const ColorSwatch = styled(Box)(({ color, theme, isLocked }) => ({
-  width: 100,
-  height: 100,
+  width: 120,
+  height: 120,
   backgroundColor: color,
   borderRadius: theme.name === 'cyberpunk' ? '2px' : '8px',
   boxShadow: theme.name === 'cyberpunk'
@@ -320,6 +322,189 @@ function App() {
     }
   };
 
+  // Function to export palette as image
+  const exportPaletteAsImage = () => {
+    if (!palette.length || !selectedImage) return;
+    
+    // Create a canvas
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Set dimensions
+    const width = 800;
+    const height = 600;
+    canvas.width = width;
+    canvas.height = height;
+    
+    // Fill background based on theme
+    if (theme.name === 'cyberpunk') {
+      const gradient = ctx.createLinearGradient(0, 0, width, height);
+      gradient.addColorStop(0, '#0a0a16');
+      gradient.addColorStop(1, '#14142b');
+      ctx.fillStyle = gradient;
+    } else {
+      ctx.fillStyle = theme.palette.mode === 'dark' ? '#121212' : '#f5f5f5';
+    }
+    ctx.fillRect(0, 0, width, height);
+    
+    // Draw border
+    if (theme.name === 'cyberpunk') {
+      ctx.strokeStyle = '#00f0ff';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(10, 10, width - 20, height - 20);
+      
+      // Add glow effect for cyberpunk
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#00f0ff';
+    } else {
+      ctx.strokeStyle = theme.palette.mode === 'dark' ? '#555' : '#ddd';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(10, 10, width - 20, height - 20);
+    }
+    
+    // Load and draw original image
+    const img = new Image();
+    img.src = selectedImage;
+    
+    img.onload = () => {
+      // Calculate image dimensions (max 300px height while maintaining aspect ratio)
+      const imgHeight = Math.min(300, img.height);
+      const imgWidth = (img.width / img.height) * imgHeight;
+      
+      // Draw image centered at the top
+      const imgX = (width - imgWidth) / 2;
+      ctx.drawImage(img, imgX, 40, imgWidth, imgHeight);
+      
+      // Reset shadow for text
+      ctx.shadowBlur = 0;
+      
+      // Add title
+      ctx.font = theme.name === 'cyberpunk' 
+        ? 'bold 24px Orbitron, Arial, sans-serif'
+        : 'bold 24px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = theme.palette.mode === 'dark' ? '#fff' : '#333';
+      ctx.fillText('TONE TREK - COLOR PALETTE', width / 2, 30);
+      
+      // Palette square size and spacing
+      const squareSize = 80;
+      const spacing = 20;
+      const startX = (width - ((squareSize + spacing) * palette.length - spacing)) / 2;
+      const startY = imgHeight + 80;
+      
+      // Draw color squares
+      palette.forEach((color, index) => {
+        const x = startX + (squareSize + spacing) * index;
+        
+        // Draw color square
+        ctx.fillStyle = color;
+        ctx.fillRect(x, startY, squareSize, squareSize);
+        
+        // Draw border
+        ctx.strokeStyle = theme.palette.mode === 'dark' ? '#555' : '#ddd';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, startY, squareSize, squareSize);
+        
+        // Determine text color based on background
+        const rgb = color.match(/\d+/g);
+        const r = parseInt(rgb[0]) / 255;
+        const g = parseInt(rgb[1]) / 255;
+        const b = parseInt(rgb[2]) / 255;
+        const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        const textColor = luminance > 0.5 ? '#000' : '#fff';
+        
+        // Draw color codes
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = textColor;
+        
+        // RGB value
+        ctx.fillText(color, x + squareSize / 2, startY + squareSize + 20);
+        
+        // HEX value
+        const hex = '#' + color.replace('rgb', '').replace('(', '').replace(')', '').split(',').map(n => parseInt(n).toString(16).padStart(2, '0')).join('').toUpperCase();
+        ctx.fillText(hex, x + squareSize / 2, startY + squareSize + 40);
+      });
+      
+      // Add footer with date and app version
+      ctx.font = theme.name === 'cyberpunk' 
+        ? '12px Orbitron, Arial, sans-serif'
+        : '12px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = theme.palette.mode === 'dark' ? '#aaa' : '#777';
+      
+      const date = new Date().toLocaleDateString();
+      ctx.fillText(`Generated on ${date} with ToneTrek ${APP_VERSION}`, width / 2, height - 20);
+      
+      // Convert to blob and download
+      canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = `tonetrek-palette-${date.replace(/\//g, '-')}.png`;
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
+      });
+    };
+  };
+
+  // Add keyboard shortcut handlers
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      // Only handle keyboard shortcuts when image is selected
+      if (!selectedImage) return;
+      
+      // Don't trigger shortcuts when typing in form elements
+      if (event.target.closest('input, textarea, [contenteditable]')) return;
+      
+      // Space key to refresh palette
+      if (event.code === 'Space') {
+        event.preventDefault(); // Prevent scrolling
+        handleRefresh();
+      }
+      
+      // Escape key to reset image
+      if (event.code === 'Escape') {
+        handleReset();
+      }
+      
+      // Number keys 1-5 to toggle lock for each color
+      if (palette.length > 0 && event.key >= '1' && event.key <= '5') {
+        const index = parseInt(event.key) - 1;
+        if (index < palette.length) {
+          setLockedColors(prev => ({
+            ...prev,
+            [index]: prev[index] ? null : palette[index]
+          }));
+          
+          setSnackbar({ 
+            open: true, 
+            message: prev[index] ? `Color ${index + 1} unlocked` : `Color ${index + 1} locked` 
+          });
+        }
+      }
+      
+      // Number key 0 to unlock all colors
+      if (event.key === '0') {
+        unlockAllColors();
+      }
+
+      // Ctrl+Shift+D to export palette as image
+      if (event.ctrlKey && event.shiftKey && event.key === 'D') {
+        event.preventDefault(); // Prevent browser default action
+        exportPaletteAsImage();
+        setSnackbar({ open: true, message: 'Exporting palette as image...' });
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    
+    // Clean up event listener on component unmount
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedImage, palette, lockedColors]); // Added palette and lockedColors as dependencies
+
   return (
     <Box
       sx={{
@@ -499,7 +684,7 @@ function App() {
           {palette.length > 0 && (
             <>
               <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 4 }}>
-                <Tooltip title="Reset Image">
+                <Tooltip title="Reset Image (ESC)">
                   <IconButton
                     onClick={handleReset}
                     color="default"
@@ -515,34 +700,54 @@ function App() {
                     <CloseIcon />
                   </IconButton>
                 </Tooltip>
-                <IconButton
-                  onClick={handleRefresh}
-                  color="primary"
-                  sx={{ 
-                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.container : theme.palette.grey[100],
-                    border: theme.name === 'cyberpunk' ? '1px solid rgba(0, 240, 255, 0.3)' : 'none',
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                      boxShadow: theme.name === 'cyberpunk' ? '0 0 10px rgba(0, 240, 255, 0.5)' : 'none',
-                    }
-                  }}
-                >
-                  <RefreshIcon />
-                </IconButton>
-                <IconButton
-                  onClick={unlockAllColors}
-                  color="secondary"
-                  sx={{ 
-                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.container : theme.palette.grey[100],
-                    border: theme.name === 'cyberpunk' ? '1px solid rgba(255, 0, 160, 0.3)' : 'none',
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                      boxShadow: theme.name === 'cyberpunk' ? '0 0 10px rgba(255, 0, 160, 0.5)' : 'none',
-                    }
-                  }}
-                >
-                  <LockOpenIcon />
-                </IconButton>
+                <Tooltip title="Refresh Palette (Space)">
+                  <IconButton
+                    onClick={handleRefresh}
+                    color="primary"
+                    sx={{ 
+                      backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.container : theme.palette.grey[100],
+                      border: theme.name === 'cyberpunk' ? '1px solid rgba(0, 240, 255, 0.3)' : 'none',
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        boxShadow: theme.name === 'cyberpunk' ? '0 0 10px rgba(0, 240, 255, 0.5)' : 'none',
+                      }
+                    }}
+                  >
+                    <RefreshIcon />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Unlock All Colors (Press 0)">
+                  <IconButton
+                    onClick={unlockAllColors}
+                    color="secondary"
+                    sx={{ 
+                      backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.container : theme.palette.grey[100],
+                      border: theme.name === 'cyberpunk' ? '1px solid rgba(255, 0, 160, 0.3)' : 'none',
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        boxShadow: theme.name === 'cyberpunk' ? '0 0 10px rgba(255, 0, 160, 0.5)' : 'none',
+                      }
+                    }}
+                  >
+                    <LockOpenIcon />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Export Palette (Ctrl+Shift+D)">
+                  <IconButton
+                    onClick={exportPaletteAsImage}
+                    color="info"
+                    sx={{ 
+                      backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.container : theme.palette.grey[100],
+                      border: theme.name === 'cyberpunk' ? '1px solid rgba(0, 240, 255, 0.3)' : 'none',
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        boxShadow: theme.name === 'cyberpunk' ? '0 0 10px rgba(0, 240, 255, 0.5)' : 'none',
+                      }
+                    }}
+                  >
+                    <FileDownloadIcon />
+                  </IconButton>
+                </Tooltip>
               </Stack>
               <ColorPalette>
                 {palette.map((color, index) => (
@@ -552,6 +757,77 @@ function App() {
                     theme={theme}
                     isLocked={Boolean(lockedColors[index])}
                   >
+                    {/* Number indicator - dimmed */}
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: '8px',
+                        left: '8px',
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: theme.name === 'cyberpunk' ? '2px' : '50%',
+                        backgroundColor: 'rgba(0, 0, 0, 0.15)',
+                        color: 'rgba(255, 255, 255, 0.5)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        fontFamily: theme.typography.fontFamily,
+                        border: theme.name === 'cyberpunk' 
+                          ? '1px solid rgba(255, 255, 255, 0.1)'
+                          : 'none',
+                        zIndex: 1,
+                        backdropFilter: 'blur(1px)',
+                      }}
+                    >
+                      {index + 1}
+                    </Box>
+                    
+                    {/* Lock status overlay */}
+                    {lockedColors[index] && (
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                          borderRadius: 'inherit',
+                          zIndex: 0,
+                          '&::before': {
+                            content: '""',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            border: theme.name === 'cyberpunk' 
+                              ? '2px solid rgba(255, 255, 255, 0.4)' 
+                              : '2px solid rgba(255, 255, 255, 0.4)',
+                            borderRadius: 'inherit',
+                            zIndex: 1,
+                          }
+                        }}
+                      >
+                        <LockIcon 
+                          sx={{ 
+                            fontSize: 32, 
+                            color: 'rgba(255, 255, 255, 0.6)', 
+                            filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.5))',
+                            ...(theme.name === 'cyberpunk' && {
+                              color: 'rgba(0, 240, 255, 0.6)',
+                              filter: 'drop-shadow(0 0 4px rgba(0, 240, 255, 0.5))',
+                            })
+                          }}
+                        />
+                      </Box>
+                    )}
+                    
                     <Stack
                       direction="row"
                       spacing={1}
@@ -562,9 +838,10 @@ function App() {
                         right: '8px',
                         opacity: 0,
                         transition: 'opacity 0.2s ease-in-out',
+                        zIndex: 2,
                       }}
                     >
-                      <Tooltip title="Lock/Unlock Color">
+                      <Tooltip title={`Lock/Unlock Color (Press ${index + 1})`}>
                         <IconButton
                           size="small"
                           sx={{ 
