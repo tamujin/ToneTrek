@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Box, Container, Typography, Button, Paper, IconButton, Stack, Alert, CircularProgress, Tooltip, Snackbar, Menu, MenuItem, ListItemText, ListItemIcon, Link } from '@mui/material';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
@@ -17,10 +17,10 @@ import { styled } from '@mui/material/styles';
 import ToneTrekLogo, { APP_VERSION, BUILD_NUMBER } from './assets/ToneTrekLogo';
 
 const UploadBox = styled(Paper)(({ theme }) => ({
-  padding: theme.spacing(3),
+  padding: theme.spacing(2),
   textAlign: 'center',
   cursor: 'pointer',
-  marginTop: theme.spacing(4),
+  marginTop: theme.spacing(2),
   backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.container : theme.palette.grey[50],
   '&:hover': {
     backgroundColor: theme.palette.mode === 'dark' ? theme.palette.action.hover : theme.palette.grey[100],
@@ -35,15 +35,16 @@ const UploadBox = styled(Paper)(({ theme }) => ({
 
 const ColorPalette = styled(Box)(({ theme }) => ({
   display: 'flex',
-  gap: theme.spacing(2),
-  marginTop: theme.spacing(4),
+  gap: theme.spacing(1.5),
+  marginTop: theme.spacing(3.5),
+  marginBottom: theme.spacing(2.5),
   justifyContent: 'center',
-  flexWrap: 'wrap',
+  flexWrap: 'nowrap',
 }));
 
 const ColorSwatch = styled(Box)(({ color, theme, isLocked }) => ({
-  width: 120,
-  height: 120,
+  width: 140,
+  height: 140,
   backgroundColor: color,
   borderRadius: theme.name === 'cyberpunk' ? '2px' : '8px',
   boxShadow: theme.name === 'cyberpunk'
@@ -131,7 +132,7 @@ const Footer = ({ theme }) => {
     <Box
       component="footer"
       sx={{
-        py: 2,
+        py: 1,
         px: 3,
         textAlign: 'center',
         borderTop: '1px solid',
@@ -181,6 +182,9 @@ function App() {
   const [snackbar, setSnackbar] = useState({ open: false, message: '' });
   const [themeMenu, setThemeMenu] = useState(null);
   const { theme, currentTheme, changeTheme, availableThemes } = useTheme();
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationType, setNotificationType] = useState('refresh'); // 'refresh', 'load', 'remove'
+  const notificationTimeoutRef = useRef(null);
 
   const handleImageUpload = (event) => {
     setError(null);
@@ -209,6 +213,17 @@ function App() {
     
     reader.onload = (e) => {
       setSelectedImage(e.target.result);
+      
+      // Show load notification
+      if (notificationTimeoutRef.current) {
+        clearTimeout(notificationTimeoutRef.current);
+      }
+      setNotificationType('load');
+      setShowNotification(true);
+      notificationTimeoutRef.current = setTimeout(() => {
+        setShowNotification(false);
+      }, 1000);
+      
       extractColors(e.target.result);
     };
 
@@ -246,18 +261,46 @@ function App() {
         colors[rgb] = (colors[rgb] || 0) + 1;
       }
 
+      // Sort colors by frequency
       const sortedColors = Object.entries(colors)
         .sort(([, a], [, b]) => b - a)
-        .slice(0, 5)
         .map(([color]) => color);
-
-      setPalette(prevPalette => {
-        const newPalette = [...sortedColors];
-        Object.entries(lockedColors).forEach(([index, color]) => {
-          if (color) newPalette[parseInt(index)] = color;
-        });
-        return newPalette;
+      
+      // Take top 5 colors or fewer if not enough colors found
+      const availableColors = sortedColors.slice(0, 5);
+      
+      // Start with an empty array that we'll fill with either locked or new colors
+      const newPalette = Array(5).fill(null);
+      
+      // First, place all locked colors at their original positions
+      Object.entries(lockedColors).forEach(([index, color]) => {
+        if (color) {
+          newPalette[parseInt(index, 10)] = color;
+        }
       });
+      
+      // Fill in the remaining slots with new colors
+      let newColorIndex = 0;
+      for (let i = 0; i < newPalette.length; i++) {
+        // Skip positions that already have a locked color
+        if (newPalette[i] !== null) continue;
+        
+        // Add a new color if available
+        if (newColorIndex < availableColors.length) {
+          newPalette[i] = availableColors[newColorIndex];
+          newColorIndex++;
+        } else {
+          // If we run out of new colors, keep the existing one if any
+          if (palette[i]) {
+            newPalette[i] = palette[i];
+          } else {
+            // Fallback to a default color
+            newPalette[i] = 'rgb(200,200,200)';
+          }
+        }
+      }
+      
+      setPalette(newPalette);
       setIsLoading(false);
     };
 
@@ -267,11 +310,25 @@ function App() {
     };
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = React.useCallback(() => {
     if (selectedImage) {
+      // Show refresh notification
+      if (notificationTimeoutRef.current) {
+        clearTimeout(notificationTimeoutRef.current);
+      }
+      setNotificationType('refresh');
+      setShowNotification(true);
+      notificationTimeoutRef.current = setTimeout(() => {
+        setShowNotification(false);
+      }, 1000);
+
+      // Save the current locked colors to ensure they're preserved
+      const currentLockedColors = {...lockedColors};
+      
+      // Extract colors and then ensure locked colors are still preserved
       extractColors(selectedImage);
     }
-  };
+  }, [selectedImage, lockedColors]);
 
   const unlockAllColors = () => {
     setLockedColors({});
@@ -310,6 +367,16 @@ function App() {
 
   // Add a function to reset the state
   const handleReset = () => {
+    // Show remove notification
+    if (notificationTimeoutRef.current) {
+      clearTimeout(notificationTimeoutRef.current);
+    }
+    setNotificationType('remove');
+    setShowNotification(true);
+    notificationTimeoutRef.current = setTimeout(() => {
+      setShowNotification(false);
+    }, 1000);
+    
     setSelectedImage(null);
     setPalette([]);
     setLockedColors({});
@@ -448,7 +515,32 @@ function App() {
     };
   };
 
-  // Add keyboard shortcut handlers
+  // Toggle lock functionality for a color
+  const toggleLockColor = (index) => {
+    setLockedColors(prev => {
+      const newLockedColors = {...prev};
+      // If color is currently locked, unlock it
+      if (newLockedColors[index]) {
+        delete newLockedColors[index];
+      } 
+      // If color is not locked, lock it
+      else {
+        newLockedColors[index] = palette[index];
+      }
+      return newLockedColors;
+    });
+  };
+
+  // Update the click handler to use the new toggleLockColor function
+  const handleColorLockClick = (index) => {
+    toggleLockColor(index);
+    setSnackbar({ 
+      open: true, 
+      message: lockedColors[index] ? `Color ${index + 1} unlocked` : `Color ${index + 1} locked` 
+    });
+  };
+
+  // Modify keyboard shortcut handlers for locking
   useEffect(() => {
     const handleKeyDown = (event) => {
       // Only handle keyboard shortcuts when image is selected
@@ -472,14 +564,12 @@ function App() {
       if (palette.length > 0 && event.key >= '1' && event.key <= '5') {
         const index = parseInt(event.key) - 1;
         if (index < palette.length) {
-          setLockedColors(prev => ({
-            ...prev,
-            [index]: prev[index] ? null : palette[index]
-          }));
+          // Use the same toggle function for consistency
+          toggleLockColor(index);
           
           setSnackbar({ 
             open: true, 
-            message: prev[index] ? `Color ${index + 1} unlocked` : `Color ${index + 1} locked` 
+            message: lockedColors[index] ? `Color ${index + 1} unlocked` : `Color ${index + 1} locked` 
           });
         }
       }
@@ -503,7 +593,17 @@ function App() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [selectedImage, palette, lockedColors]); // Added palette and lockedColors as dependencies
+  }, [selectedImage, palette, lockedColors, handleRefresh]); // Added handleRefresh as dependency
+
+  // Fix the button's click handler
+  const IconButtonClickHandler = (index) => {
+    // Use the same toggle function
+    toggleLockColor(index);
+    setSnackbar({ 
+      open: true, 
+      message: lockedColors[index] ? `Color ${index + 1} unlocked` : `Color ${index + 1} locked` 
+    });
+  };
 
   return (
     <Box
@@ -513,11 +613,53 @@ function App() {
         minHeight: '100vh', // Make the app container at least full viewport height
       }}
     >
-      <Container maxWidth="md" sx={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
+      {/* Subtle notification indicator with different colors based on action */}
+      {showNotification && (
+        <Box
+          sx={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: '4px',
+            backgroundColor: 
+              notificationType === 'refresh' 
+                ? (theme.name === 'cyberpunk' ? 'rgba(0, 240, 255, 0.7)' : theme.palette.primary.main) 
+                : notificationType === 'load'
+                  ? (theme.name === 'cyberpunk' ? 'rgba(0, 255, 128, 0.7)' : theme.palette.success.main)
+                  : (theme.name === 'cyberpunk' ? 'rgba(255, 50, 50, 0.7)' : theme.palette.error.main),
+            zIndex: 9999,
+            animation: 'flash 1s ease-out forwards',
+            '@keyframes flash': {
+              '0%': {
+                opacity: 0.9,
+                height: '1px',
+              },
+              '20%': {
+                opacity: 1,
+                height: '4px',
+              },
+              '100%': {
+                opacity: 0,
+                height: '1px',
+              },
+            },
+            boxShadow: 
+              notificationType === 'refresh'
+                ? (theme.name === 'cyberpunk' ? '0 0 10px rgba(0, 240, 255, 0.8)' : `0 0 5px ${theme.palette.primary.main}`) 
+                : notificationType === 'load'
+                  ? (theme.name === 'cyberpunk' ? '0 0 10px rgba(0, 255, 128, 0.8)' : `0 0 5px ${theme.palette.success.main}`)
+                  : (theme.name === 'cyberpunk' ? '0 0 10px rgba(255, 50, 50, 0.8)' : `0 0 5px ${theme.palette.error.main}`),
+          }}
+        />
+      )}
+
+      <Container maxWidth="md" sx={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column', pb: 0 }}>
         <Box sx={{ 
-          my: 4, 
+          mb: 0,
+          mt: 2,
           position: 'relative',
-          padding: 2,
+          padding: 1,
           borderRadius: theme.name === 'cyberpunk' ? '2px' : '8px',
           border: theme.name === 'cyberpunk' ? '1px solid rgba(0, 240, 255, 0.15)' : 'none',
           boxShadow: theme.name === 'cyberpunk' ? '0 0 10px rgba(0, 0, 255, 0.1)' : 'none',
@@ -554,7 +696,9 @@ function App() {
             ))}
           </Menu>
           
-          <ToneTrekLogo theme={theme} />
+          <Box sx={{ transform: 'scale(0.9)', transformOrigin: 'top center', mt: -0.5, mb: -0.5 }}>
+            <ToneTrekLogo theme={theme} />
+          </Box>
           
           <input
             type="file"
@@ -571,7 +715,7 @@ function App() {
                 flexDirection: selectedImage ? 'row' : 'column',
                 alignItems: 'center',
                 justifyContent: selectedImage ? 'center' : 'flex-start',
-                p: selectedImage ? 2 : 5,
+                p: selectedImage ? 1.5 : 2,
                 border: theme.name === 'cyberpunk' 
                   ? '1px dashed rgba(0, 240, 255, 0.3)' 
                   : selectedImage 
@@ -587,7 +731,8 @@ function App() {
                 '&:hover': {
                   borderColor: theme.palette.primary.main,
                 },
-                mt: selectedImage ? 2 : 4,
+                mt: 2.5,
+                mb: 2.5,
                 maxHeight: selectedImage ? '60px' : 'auto',
               }}
             >
@@ -596,9 +741,9 @@ function App() {
                 variant={theme.name === 'cyberpunk' ? 'outlined' : 'contained'} 
                 color="primary"
                 sx={{
-                  width: selectedImage ? '40px' : '60px',
-                  height: selectedImage ? '40px' : '60px',
-                  minWidth: selectedImage ? '40px' : '60px',
+                  width: selectedImage ? '32px' : '50px',
+                  height: selectedImage ? '32px' : '50px',
+                  minWidth: selectedImage ? '32px' : '50px',
                 }}
               >
                 <UploadIcon theme={theme} />
@@ -607,10 +752,10 @@ function App() {
                 <Typography 
                   variant="body1" 
                   sx={{ 
-                    mt: 2,
+                    mt: 1,
                     fontFamily: theme.typography.fontFamily,
                     color: theme.palette.text.secondary,
-                    fontSize: '0.9rem'
+                    fontSize: '0.85rem'
                   }}
                 >
                   Drop your image here or click to upload
@@ -620,22 +765,22 @@ function App() {
                 <Typography 
                   variant="body2" 
                   sx={{ 
-                    ml: 2,
+                    ml: 1,
                     fontFamily: theme.typography.fontFamily,
                     color: theme.palette.text.secondary,
-                    fontSize: '0.8rem'
+                    fontSize: '0.75rem'
                   }}
                 >
                   Click to change image
                 </Typography>
               )}
               {isLoading && (
-                <Box sx={{ ml: selectedImage ? 2 : 0, mt: selectedImage ? 0 : 2, display: 'flex', justifyContent: 'center' }}>
-                  <CircularProgress size={24} />
+                <Box sx={{ ml: selectedImage ? 1 : 0, mt: selectedImage ? 0 : 1, display: 'flex', justifyContent: 'center' }}>
+                  <CircularProgress size={20} />
                 </Box>
               )}
               {error && !selectedImage && (
-                <Alert severity="error" sx={{ mt: 2 }}>
+                <Alert severity="error" sx={{ mt: 1 }}>
                   {error}
                 </Alert>
               )}
@@ -671,10 +816,10 @@ function App() {
               <img 
                 src={selectedImage} 
                 alt="Selected" 
-                style={{ maxWidth: '100%', maxHeight: '300px' }} 
+                style={{ maxWidth: '100%', maxHeight: '240px' }}
               />
               {error && (
-                <Alert severity="error" sx={{ mt: 2, mx: 'auto', maxWidth: '80%' }}>
+                <Alert severity="error" sx={{ mt: 1, mx: 'auto', maxWidth: '80%' }}>
                   {error}
                 </Alert>
               )}
@@ -683,11 +828,12 @@ function App() {
 
           {palette.length > 0 && (
             <>
-              <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 4 }}>
+              <Stack direction="row" spacing={1.5} justifyContent="center" sx={{ mt: 3 }}>
                 <Tooltip title="Reset Image (ESC)">
                   <IconButton
                     onClick={handleReset}
                     color="default"
+                    size="small"
                     sx={{ 
                       backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.container : theme.palette.grey[100],
                       border: theme.name === 'cyberpunk' ? '1px solid rgba(255, 255, 255, 0.3)' : 'none',
@@ -697,13 +843,14 @@ function App() {
                       }
                     }}
                   >
-                    <CloseIcon />
+                    <CloseIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
                 <Tooltip title="Refresh Palette (Space)">
                   <IconButton
                     onClick={handleRefresh}
                     color="primary"
+                    size="small"
                     sx={{ 
                       backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.container : theme.palette.grey[100],
                       border: theme.name === 'cyberpunk' ? '1px solid rgba(0, 240, 255, 0.3)' : 'none',
@@ -713,13 +860,14 @@ function App() {
                       }
                     }}
                   >
-                    <RefreshIcon />
+                    <RefreshIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
                 <Tooltip title="Unlock All Colors (Press 0)">
                   <IconButton
                     onClick={unlockAllColors}
                     color="secondary"
+                    size="small"
                     sx={{ 
                       backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.container : theme.palette.grey[100],
                       border: theme.name === 'cyberpunk' ? '1px solid rgba(255, 0, 160, 0.3)' : 'none',
@@ -729,13 +877,14 @@ function App() {
                       }
                     }}
                   >
-                    <LockOpenIcon />
+                    <LockOpenIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
                 <Tooltip title="Export Palette (Ctrl+Shift+D)">
                   <IconButton
                     onClick={exportPaletteAsImage}
                     color="info"
+                    size="small"
                     sx={{ 
                       backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.container : theme.palette.grey[100],
                       border: theme.name === 'cyberpunk' ? '1px solid rgba(0, 240, 255, 0.3)' : 'none',
@@ -745,7 +894,7 @@ function App() {
                       }
                     }}
                   >
-                    <FileDownloadIcon />
+                    <FileDownloadIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
               </Stack>
@@ -761,17 +910,17 @@ function App() {
                     <Box
                       sx={{
                         position: 'absolute',
-                        top: '8px',
-                        left: '8px',
-                        width: '20px',
-                        height: '20px',
+                        top: '12px',
+                        left: '12px',
+                        width: '28px',
+                        height: '28px',
                         borderRadius: theme.name === 'cyberpunk' ? '2px' : '50%',
                         backgroundColor: 'rgba(0, 0, 0, 0.15)',
                         color: 'rgba(255, 255, 255, 0.5)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontSize: '12px',
+                        fontSize: '16px',
                         fontWeight: 'bold',
                         fontFamily: theme.typography.fontFamily,
                         border: theme.name === 'cyberpunk' 
@@ -851,10 +1000,7 @@ function App() {
                             } 
                           }}
                           onClick={() => {
-                            setLockedColors(prev => ({
-                              ...prev,
-                              [index]: prev[index] ? null : color
-                            }));
+                            toggleLockColor(index);
                           }}
                         >
                           {lockedColors[index] ? 
@@ -947,7 +1093,7 @@ function App() {
         />
       </Container>
       
-      <Box sx={{ flexShrink: 0 }}>
+      <Box sx={{ flexShrink: 0, mt: 1 }}>
         <Footer theme={theme} />
       </Box>
     </Box>
